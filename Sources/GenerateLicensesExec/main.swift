@@ -28,6 +28,25 @@ var licenses = [String: String]()
 
 let packagesResolved = try JSONDecoder().decode(PackageResolved.self, from: packagesResolvedData)
 
+func findLicenseFile(atPath path: String) -> Data? {
+    for ext in ["", ".md", ".txt"] {
+        let licensePath = "\(path)/LICENSE\(ext)"
+
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: licensePath, isDirectory: &isDirectory) {
+            if isDirectory.boolValue {
+                return findLicenseFile(atPath: licensePath)
+            }
+        }
+
+        if let data = FileManager.default.contents(atPath: licensePath) {
+            return data
+        }
+    }
+
+    return nil
+}
+
 for location in packagesResolved.pins?.compactMap({ $0.location }) ?? [] {
     guard let packageDirName = URL(string: location)?.deletingPathExtension().lastPathComponent else {
         continue
@@ -35,15 +54,11 @@ for location in packagesResolved.pins?.compactMap({ $0.location }) ?? [] {
 
     let packagePath = "\(checkoutsPath)/\(packageDirName)"
 
-    for ext in ["", ".md", ".txt"] {
-        let licensePath = "\(packagePath)/LICENSE\(ext)"
-        if
-            let data = FileManager.default.contents(atPath: licensePath),
-            let string = String(data: data, encoding: .utf8)
-        {
-            licenses[packageDirName] = string
-            break
-        }
+    if
+        let data = findLicenseFile(atPath: packagePath),
+        let string = String(data: data, encoding: .utf8)
+    {
+        licenses[packageDirName] = string
     }
 }
 
